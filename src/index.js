@@ -138,7 +138,7 @@ app.get("/messages", async (req, res) => {
       if (limit) {
         const message = online.slice(-limit);
         res.send(message);
-        //Casso não tenha limite
+        //Caso não tenha limite
       } else {
         const message = online.slice(-100);
         res.send(message);
@@ -148,5 +148,51 @@ app.get("/messages", async (req, res) => {
     }
   }
 });
+
+app.post("/status", async (req, res) => {
+  const { user } = req.headers;
+
+  try {
+    const searchParticipant = await db
+      .collection("participants")
+      .findOne({ name: user });
+    //Atualizando os status da pessoa
+    if (searchParticipant) {
+      const update = await db
+        .collection("participants")
+        .updateOne({ name: user }, { $set: { lastStatus: Date.now() } });
+      console.log("updateStatus:", update);
+      res.sendStatus(200);
+      return;
+      //Erro ao atualizar
+    } else {
+      res.sendStatus(404);
+      return;
+    }
+  } catch (err) {
+    res.sendStatus(err);
+  }
+});
+
+setInterval(async () => {
+  try {
+    const activeUser = await db.collection("participants").find().toArray();
+    activeUser.forEach(async (p) => {
+      const timer = Date.now() - p.lastStatus;
+      if (timer > 10000) {
+        await db.collection("participants").deleteOne({ name: p.name });
+        await db.collection("participants").insertOne({
+          from: p.name,
+          to: "Todos",
+          text: "Sai da sala...",
+          type: "status",
+          time: dayjs().format("HH:mm:ss"),
+        });
+      }
+    });
+  } catch (err) {
+    sendStatus(err);
+  }
+}, 15000);
 
 app.listen(5000, () => console.log(`App running in port: 5000`));
